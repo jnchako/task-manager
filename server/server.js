@@ -1,60 +1,128 @@
+
 const express = require("express");
 const cors = require("cors");
+const { randomUUID } = require("crypto");
+
+const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
+const {
+    DynamoDBDocumentClient,
+    PutCommand,
+    QueryCommand
+} = require("@aws-sdk/lib-dynamodb");
 
 const app = express();
+const PORT = process.env.PORT || 8080;
+
+// DynamoDB configuration
+const client = new DynamoDBClient({
+    region: process.env.AWS_REGION || "us-east-2"
+});
+
+const dynamoDB = DynamoDBDocumentClient.from(client);
+
+const TABLE_NAME = "Tasks";
+
+// Temporary user until Cognito login is implemented
+const USER_ID = "demo-user";
 
 app.use(cors());
+app.use(express.json({ limit: "10kb" }));
 
-const PORT = 3000;
+// Validate and sanitize task input
+function validateTask(task) {
+    if (typeof task !== "string") {
+        return null;
+    }
 
-// Allows the server to understand JSON data
-app.use(express.json());
+    const cleaned = task.trim();
 
-// Temporary task data
-const tasks = [
-    "Finish Cloud Homework",
-    "Study REST APIs",
-    "Work on Inbox Simulator"
-];
+    if (cleaned.length === 0 || cleaned.length > 200) {
+        return null;
+    }
 
-// Basic route
+    return cleaned;
+}
+
+// Home route
 app.get("/", (req, res) => {
     res.send("Student Task Manager Server is running!");
 });
 
-// GET endpoint - sends task data
-app.get("/tasks", (req, res) => {
-    res.json({
-        status: "success",
-        tasks: tasks
-    });
-});
+// GET tasks from DynamoDB
+app.get("/tasks", async (req, res) => {
+    try {
+        const result = await dynamoDB.send(
+            new QueryCommand({
+                TableName: TABLE_NAME,
+                KeyConditionExpression: "userId = :userId",
+                ExpressionAttributeValues: {
+                    ":userId": USER_ID
+                }
+            })
+        );
 
-// POST endpoint - receives a new task
-app.post("/tasks", (req, res) => {
+        const tasks = (result.Items || []).map(
+            item => item.title
+        );
 
-    const newTask = req.body.task;
+        res.json({
+            status: "success",
+            tasks: tasks
+        });
 
-    // Make sure a task was provided
-    if (!newTask) {
-        return res.status(400).json({
+    } catch (error) {
+        console.error("Error retrieving tasks:", error);
+
+        res.status(500).json({
             status: "error",
-            message: "A task is required."
+            message: "Unable to retrieve tasks."
         });
     }
-
-    // Add task to our array
-    tasks.push(newTask);
-
-    // Send response back to client
-    res.json({
-        status: "success",
-        message: "Task added successfully.",
-        task: newTask
-    });
 });
 
-// Start server
+// POST a new task to DynamoDB
+app.post("/tasks", async (req, res) => {
+    try {
+        const newTask = validateTask(req.body?.task);
+
+        if (!newTask) {
+            return res.status(400).json({
+                status: "error",
+                message: "Task must be between 1 and 200 characters."
+            });
+        }
+
+        const taskItem = {
+            userId: USER_ID,
+            taskId: randomUUID(),
+            title: newTask,
+            completed: false,
+            createdAt: new Date().toISOString()
+        };
+
+        await dynamoDB.send(
+            new PutCommand({
+                TableName: TABLE_NAME,
+                Item: taskItem
+            })
+        );
+
+        res.status(201).json({
+            status: "success",
+            message: "Task added successfully.",
+            task: newTask
+        });
+
+    } catch (error) {
+        console.error("Error saving task:", error);
+
+        res.status(500).json({
+            status: "error",
+            message: "Unable to save task."
+        });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });

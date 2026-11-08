@@ -3,7 +3,7 @@ const taskInput = document.getElementById("taskInput");
 const taskList = document.getElementById("taskList");
 const reloadButton = document.getElementById("reloadButton");
 
-const API_URL = "http://localhost:3000";
+const API_URL = "https://mia1te0nv5.execute-api.us-east-2.amazonaws.com";
 
 // Load tasks from server
 async function loadTasks() {
