@@ -165,7 +165,10 @@ logoutButton.addEventListener("click", () => {
 
 // Process login callback when page opens
 handleLoginCallback()
-    .then(showLoggedInUser)
+    .then(() => {
+        showLoggedInUser();
+        return loadTasks();
+    })
     .catch(error => {
         console.error("Authentication error:", error);
         alert("Login failed. Please try again.");
@@ -175,7 +178,18 @@ handleLoginCallback()
 // Load tasks from server
 async function loadTasks() {
     try {
-        const response = await fetch(`${API_URL}/tasks`);
+        const accessToken = sessionStorage.getItem("access_token");
+
+        if (!accessToken) {
+            taskList.replaceChildren();
+            return;
+        }
+
+        const response = await fetch(`${API_URL}/tasks`, {
+            headers: {
+                "Authorization": `Bearer ${accessToken}`
+            }
+        });
 
         if (!response.ok) {
             throw new Error("Failed to load tasks.");
@@ -222,10 +236,18 @@ taskForm.addEventListener("submit", async function (event) {
     }
 
     try {
+        const accessToken = sessionStorage.getItem("access_token");
+
+        if (!accessToken) {
+            alert("Please log in before adding tasks.");
+            return;
+        }
+
         const response = await fetch(`${API_URL}/tasks`, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${accessToken}`
             },
             body: JSON.stringify({
                 task: task
@@ -245,6 +267,7 @@ taskForm.addEventListener("submit", async function (event) {
         alert("Unable to save task. Please try again.");
     }
 });
+
 
 // Reload tasks
 reloadButton.addEventListener("click", function () {

@@ -10,7 +10,22 @@ const {
     QueryCommand
 } = require("@aws-sdk/lib-dynamodb");
 
+const { CognitoJwtVerifier } = require("aws-jwt-verify");
+
 const app = express();
+
+app.use(cors());
+
+// Allow browser preflight requests without authentication
+app.use((req, res, next) => {
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
+app.use(express.json({ limit: "10kb" }));
+
 const PORT = process.env.PORT || 8080;
 
 // DynamoDB configuration
@@ -22,11 +37,42 @@ const dynamoDB = DynamoDBDocumentClient.from(client);
 
 const TABLE_NAME = "task-manager";
 
-// Temporary user until Cognito login is implemented
-const USER_ID = "demo-user";
+const verifier = CognitoJwtVerifier.create({
+    userPoolId: "us-east-2_ngnekevYF",
+    tokenUse: "access",
+    clientId: "5ipc21is90ci2ti6d5m34ir82p"
+});
 
-app.use(cors());
-app.use(express.json({ limit: "10kb" }));
+async function authenticateUser(req, res, next) {
+    const authorization = req.headers.authorization;
+
+    if (!authorization || !authorization.startsWith("Bearer ")) {
+        return res.status(401).json({
+            status: "error",
+            message: "Authentication required."
+        });
+    }
+
+    const token = authorization.substring(7);
+
+    try {
+        const payload = await verifier.verify(token);
+
+        // Cognito's verified unique user identifier
+        req.userId = payload.sub;
+
+        next();
+    } catch (error) {
+        console.error("Authentication failed:", error.message);
+
+        return res.status(401).json({
+            status: "error",
+            message: "Invalid or expired authentication token."
+        });
+    }
+}
+
+
 
 // Validate and sanitize task input
 function validateTask(task) {
@@ -49,14 +95,14 @@ app.get("/", (req, res) => {
 });
 
 // GET tasks from DynamoDB
-app.get("/tasks", async (req, res) => {
+app.get("/tasks", authenticateUser, async (req, res) => {
     try {
         const result = await dynamoDB.send(
             new QueryCommand({
                 TableName: TABLE_NAME,
                 KeyConditionExpression: "userId = :userId",
                 ExpressionAttributeValues: {
-                    ":userId": USER_ID
+                    ":userId": req.userId
                 }
             })
         );
@@ -81,7 +127,7 @@ app.get("/tasks", async (req, res) => {
 });
 
 // POST a new task to DynamoDB
-app.post("/tasks", async (req, res) => {
+app.post("/tasks", authenticateUser, async (req, res) => {
     try {
         const newTask = validateTask(req.body?.task);
 
@@ -93,7 +139,7 @@ app.post("/tasks", async (req, res) => {
         }
 
         const taskItem = {
-            userId: USER_ID,
+            userId: req.userId,
             taskId: randomUUID(),
             title: newTask,
             completed: false,
