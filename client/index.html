@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -13,6 +14,17 @@
 
     <h1>Student Task Manager</h1>
 
+    <!-- NEW: Cognito Authentication Section -->
+    <section id="authSection">
+        <button id="loginButton" type="button">Login</button>
+
+        <button id="logoutButton" type="button" hidden>
+            Logout
+        </button>
+
+        <p id="welcomeMessage"></p>
+    </section>
+
     <section>
         <h2>Current Tasks</h2>
 
@@ -20,7 +32,9 @@
             <p>No tasks loaded yet.</p>
         </div>
 
-        <button id="reloadButton">Reload Tasks</button>
+        <button id="reloadButton" type="button">
+            Reload Tasks
+        </button>
     </section>
 
     <section>
@@ -34,6 +48,7 @@
                 type="text"
                 id="taskInput"
                 placeholder="Enter a task"
+                maxlength="200"
                 required
             >
 

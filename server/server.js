@@ -20,7 +20,7 @@ const client = new DynamoDBClient({
 
 const dynamoDB = DynamoDBDocumentClient.from(client);
 
-const TABLE_NAME = "Tasks";
+const TABLE_NAME = "task-manager";
 
 // Temporary user until Cognito login is implemented
 const USER_ID = "demo-user";
